@@ -1,0 +1,235 @@
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import {
+  analyzeGrammar, GRAMMAR, programText, renderProduction, type ParserOutput, type StageResult, type Token,
+} from '../../compiler/index';
+import { Card, Reference, SkippedNote, useWalkStep } from '../Card';
+import { DiagnosticRow, ErrorBox } from '../DiagnosticBox';
+import { astTree, parseTree } from '../trees';
+import { TreeView } from '../viz/TreeView';
+
+const ANALYSIS = analyzeGrammar();
+const PRODUCTIONS = GRAMMAR.map(renderProduction);
+const PLAY_MS = 450;
+const WALK_MS = 160;
+/** The walkthrough shows the parser's opening moves, not all of them. */
+const WALK_STEPS = 24;
+
+function GrammarView({ active }: { active: string | undefined }) {
+  return (
+    <div class="grammar" data-testid="grammar">
+      {PRODUCTIONS.map(({ name, alternatives }) => (
+        <div class={`grammar-rule ${active === name ? 'is-active' : ''}`} key={name} data-rule={name}>
+          <span class="grammar-lhs">{name}</span>
+          <span class="grammar-arrow">→</span>
+          <span class="grammar-rhs">
+            {alternatives.map((alt, i) => (
+              <span class="grammar-alt" key={i}>{i > 0 && <span class="grammar-bar">| </span>}{alt}</span>
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Steps through the rules in the order the parser entered them. */
+function GrammarStepper({ output, tokens, autoplay, onAutoplayEnd }: {
+  output: ParserOutput;
+  tokens: readonly Token[];
+  /** Goes up by one to play from the start, as the walkthrough does. */
+  autoplay: number;
+  onAutoplayEnd: () => void;
+}) {
+  const { steps } = output;
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const step = steps[Math.min(index, steps.length - 1)];
+  const next = tokens[step?.tokenIndex ?? 0];
+
+  useEffect(() => {
+    setIndex(0);
+    setPlaying(false);
+  }, [output]);
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    if (index >= steps.length - 1) {
+      setPlaying(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setIndex(index + 1), PLAY_MS);
+    return () => clearTimeout(timer);
+  }, [playing, index, steps.length]);
+
+  useEffect(() => {
+    if (autoplay === 0) return undefined;
+    let at = 0;
+    const end = Math.min(steps.length - 1, WALK_STEPS);
+    setIndex(0);
+    const timer = setInterval(() => {
+      at++;
+      setIndex(at);
+      if (at >= end) {
+        clearInterval(timer);
+        onAutoplayEnd();
+      }
+    }, WALK_MS);
+    return () => clearInterval(timer);
+    // Only a new request should restart it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoplay]);
+
+  return (
+    <>
+      <div class="toolbar">
+        <button onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}>Back</button>
+        <button onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
+        <button data-testid="grammar-step" onClick={() => setIndex(Math.min(steps.length - 1, index + 1))}
+          disabled={index >= steps.length - 1}>Step</button>
+        <span class="toolbar-note">
+          Step {index + 1} of {steps.length}: in <code>{step?.rule}</code>, next token <code>{next?.lexeme || 'EOF'}</code>
+        </span>
+      </div>
+      <GrammarView active={step?.rule} />
+    </>
+  );
+}
+
+function FirstFollowTable() {
+  return (
+    <div class="table-scroll">
+      <table class="compact">
+        <thead><tr><th>Nonterminal</th><th>FIRST</th><th>FOLLOW</th></tr></thead>
+        <tbody>
+          {Object.keys(ANALYSIS.first).map((name) => (
+            <tr key={name}>
+              <td><code>{name}</code></td>
+              <td><code>{ANALYSIS.first[name]!.join(' ')}</code></td>
+              <td><code>{ANALYSIS.follow[name]!.join(' ')}</code></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ParseTable() {
+  // Grouping terminals that lead to one production keeps the table readable.
+  const rows = useMemo(() => {
+    const groups = new Map<string, { nonterminal: string; production: string; terminals: string[] }>();
+    for (const entry of ANALYSIS.table) {
+      const key = `${entry.nonterminal}\u0000${entry.production}`;
+      const group = groups.get(key);
+      if (group) group.terminals.push(entry.terminal);
+      else groups.set(key, { nonterminal: entry.nonterminal, production: entry.production, terminals: [entry.terminal] });
+    }
+    return [...groups.values()];
+  }, []);
+  return (
+    <div class="table-scroll">
+      <table class="compact">
+        <thead><tr><th>Nonterminal</th><th>On token</th><th>Use production</th></tr></thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.nonterminal + row.production}>
+              <td><code>{row.nonterminal}</code></td>
+              <td><code>{row.terminals.join(' ')}</code></td>
+              <td><code>{row.production}</code></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+interface ParserCardProps {
+  stage: StageResult;
+  source: string;
+  tokens: readonly Token[];
+  collectAll: boolean;
+  onCollectAll: (value: boolean) => void;
+}
+
+export function ParserCard({ stage, source, tokens, collectAll, onCollectAll }: ParserCardProps) {
+  const output = stage.output as ParserOutput | null;
+  const [view, setView] = useState<'ast' | 'parse'>('ast');
+  const clean = stage.status !== 'error';
+
+  const astRoot = useMemo(() => (output ? astTree(output.ast) : null), [output]);
+  const parseRoot = useMemo(() => (output ? parseTree(output, tokens) : null), [output, tokens]);
+  const root = view === 'ast' ? astRoot : parseRoot;
+  const [grammarOpen, setGrammarOpen] = useState(false);
+  const [autoplay, setAutoplay] = useState(0);
+  const walkDone = useRef<() => void>(() => {});
+
+  useWalkStep('parser', (done) => {
+    if (!output || !clean) {
+      const timer = setTimeout(done, 1200);
+      return () => clearTimeout(timer);
+    }
+    walkDone.current = done;
+    setGrammarOpen(true);
+    setAutoplay((n) => n + 1);
+    return undefined;
+  });
+
+  return (
+    <Card stage={stage}
+      intro="Checks that the tokens follow the grammar, and builds a tree showing how the program fits together.">
+      {stage.status === 'skipped' && <SkippedNote stage={stage} />}
+
+      {stage.diagnostics.slice(0, 1).map((d) => <ErrorBox key={d.code} diagnostic={d} source={source} />)}
+      {stage.diagnostics.length > 1 && (
+        <ul class="diagnostics">{stage.diagnostics.slice(1).map((d, i) => <DiagnosticRow key={i} diagnostic={d} />)}</ul>
+      )}
+      {stage.status !== 'skipped' && (
+        <label class="toggle-line">
+          <input type="checkbox" checked={collectAll} data-testid="collect-all"
+            onChange={(e) => onCollectAll(e.currentTarget.checked)} />
+          {collectAll
+            ? 'Collecting all errors: after an error the parser skips to the next rule (panic mode).'
+            : 'The parser stops at the first error. Tick to collect all errors.'}
+        </label>
+      )}
+
+      {output && clean && root && (
+        <>
+          <div class="toolbar">
+            <div class="segmented" role="group" aria-label="Tree view">
+              <button class={view === 'ast' ? 'is-on' : ''} data-testid="ast-toggle" onClick={() => setView('ast')}>AST</button>
+              <button class={view === 'parse' ? 'is-on' : ''} data-testid="parse-tree-toggle" onClick={() => setView('parse')}>Parse tree</button>
+            </div>
+            <span class="toolbar-note">
+              {view === 'ast'
+                ? 'The AST keeps only what carries meaning.'
+                : 'The parse tree shows every grammar step, so one number sits under a long chain of rules.'}
+              {' '}Click a box to fold it. Hover to find it in the editor.
+            </span>
+          </div>
+          <TreeView root={root} legend={view} />
+
+          <h3>The whole program as the parser sees it</h3>
+          <pre class="code-block" data-testid="program-text">{programText(output.ast) || '(an empty program)'}</pre>
+        </>
+      )}
+
+      <Reference title="The grammar the parser follows" open={stage.status === 'error' || grammarOpen}>
+        {output && clean && output.steps.length > 1
+          ? <GrammarStepper output={output} tokens={tokens} autoplay={autoplay} onAutoplayEnd={() => walkDone.current()} />
+          : <GrammarView active={undefined} />}
+      </Reference>
+
+      <Reference title="Why LL(1)?">
+        <p>LL(1) means the parser reads left to right and picks each grammar rule by looking at just one token. HomeLang's grammar has no left recursion, and it is left-factored: comparison, IS and BETWEEN all start with a value, so they share <code>atom → value [ atomTail ]</code>.</p>
+        <p>Two conditions must hold. The FIRST sets of a rule's alternatives must not overlap, and wherever something can be skipped, its FIRST must not overlap what follows it. This page computes both from the grammar above.</p>
+        <p data-testid="ll1-result"><strong>LL(1) conflicts found: {ANALYSIS.conflicts.length}.</strong></p>
+        <p>Nested IFs must end with END, so an ELSE always belongs to the nearest open IF. That removes the dangling-else ambiguity. Parentheses group conditions only, because if they could also group arithmetic, <code>(</code> would need unbounded lookahead.</p>
+      </Reference>
+
+      <Reference title="FIRST and FOLLOW sets"><FirstFollowTable /></Reference>
+      <Reference title="The LL(1) parse table"><ParseTable /></Reference>
+    </Card>
+  );
+}
