@@ -38,9 +38,14 @@ export function selectDfa(first: CharClass): Dfa | undefined {
 }
 
 function findEdge(dfa: Dfa, state: string, cls: CharClass): DfaEdge | undefined {
-  const edges = dfa.edges.filter((e) => e.from === state);
   // An edge with neither `to` nor `error` documents a deliberate stop.
-  return edges.find((e) => e.on.includes(cls)) ?? edges.find((e) => e.on.includes('else'));
+  let fallback: DfaEdge | undefined;
+  for (const e of dfa.edges) {
+    if (e.from !== state) continue;
+    if (e.on.includes(cls)) return e;
+    if (!fallback && e.on.includes('else')) fallback = e;
+  }
+  return fallback;
 }
 
 export type DfaRun =

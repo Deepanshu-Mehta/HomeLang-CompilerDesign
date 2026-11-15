@@ -5,7 +5,10 @@ const SINGLE_CHARS: Readonly<Record<string, CharClass>> = {
   '>': 'gt', '<': 'lt', '=': 'eq', '!': 'bang', '"': 'quote', '\\': 'backslash',
   '/': 'slash', '*': 'star', '+': 'punct', '-': 'punct', '(': 'punct',
   ')': 'punct', '{': 'punct', '}': 'punct', ',': 'punct', ';': 'punct',
-  ' ': 'space', '\t': 'space', '\r': 'newline', '\n': 'newline',
+  ' ': 'space', '\t': 'space', '\n': 'newline',
+  // CR is whitespace and only LF ends a line, matching SourceMap. A BOM and a
+  // non-breaking space are invisible, so they are skipped rather than reported.
+  '\r': 'space', '\uFEFF': 'space', '\u00A0': 'space',
 };
 
 /** undefined means end of input. */

@@ -228,4 +228,12 @@ describe('unit list', () => {
     expect([...listed].sort()).toEqual([...accepted].sort());
     expect(DIAGNOSTIC_CODES.L106.hint).toContain(`Known units: ${KNOWN_UNITS_TEXT}.`);
   });
+
+  it('treats a lone CR, a BOM and a non-breaking space as whitespace', () => {
+    const { output, diagnostics } = lex('\uFEFFIF\u00A0TEMPERATURE\rTHEN // note\r still comment\nTURN_ON');
+    expect(diagnostics).toEqual([]);
+    expect(output.tokens.map((t) => t.lexeme)).toEqual(['IF', 'TEMPERATURE', 'THEN', 'TURN_ON', '']);
+    // Only LF starts a line, in the lexer and in SourceMap alike.
+    expect(output.tokens.map((t) => t.span.line)).toEqual([1, 1, 1, 2, 2]);
+  });
 });
