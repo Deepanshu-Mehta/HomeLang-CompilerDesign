@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-cli/
+coverage/
+test-results/
+playwright-report/
+.vite/
+.DS_Store
+reference/
+plan.txt
+CLAUDE.md
+.claude/
+docs/VIVA_NOTES.md
+docs/ui/before/
+docs/ui/captures/
