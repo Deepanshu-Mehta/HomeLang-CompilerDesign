@@ -67,13 +67,16 @@ export function buildCfg(program: IrProgram): Cfg {
   for (const block of blocks) {
     const last = at(block.end - 1);
     const fallthrough = blockAt.get(block.end);
+    // A jump past the last quad has no block, so it gets no edge.
+    const targetBlock = last.kind === 'goto' || last.kind === 'if' || last.kind === 'ifIn'
+      ? (last.target !== null ? blockAt.get(last.target) : undefined) : undefined;
     if (last.kind === 'goto') {
-      if (last.target !== null) edges.push({ from: block.id, to: blockAt.get(last.target)!, kind: 'jump' });
+      if (targetBlock) edges.push({ from: block.id, to: targetBlock, kind: 'jump' });
     } else if (last.kind === 'if' || last.kind === 'ifIn') {
       // ifFalse swaps which way counts as true.
       const taken = last.negate ? 'false' : 'true';
       const fallen = last.negate ? 'true' : 'false';
-      if (last.target !== null) edges.push({ from: block.id, to: blockAt.get(last.target)!, kind: taken });
+      if (targetBlock) edges.push({ from: block.id, to: targetBlock, kind: taken });
       if (fallthrough) edges.push({ from: block.id, to: fallthrough, kind: fallen });
     } else if (last.kind !== 'ret' && fallthrough) {
       edges.push({ from: block.id, to: fallthrough, kind: 'jump' });
