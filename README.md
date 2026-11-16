@@ -194,10 +194,14 @@ flowchart LR
 
 ## Team
 
-Course: Compiler Design
+Course: Compiler Design. Each member built and owns one stage of the compiler.
 
-1. Deepanshu Mehta
-2. Vishesh
-3. Pranay Vishwakarma
-4. Ankush
-5. Manu Vahan
+| Stage | Owner | Where |
+|-------|-------|-------|
+| Lexer, UI shell | Deepanshu Mehta | `src/compiler/lexer/`, `src/ui/` |
+| Parser | Vishesh Rao | `src/compiler/parser/` |
+| Semantic analysis | Manu Vahan | `src/compiler/semantic/` |
+| IR and optimizer | Pranay Vishwakarma | `src/compiler/ir/`, `src/compiler/opt/` |
+| Codegen, VM and simulator | Ankush Yadav | `src/compiler/codegen/`, `src/compiler/runtime/` |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and review workflow we used.

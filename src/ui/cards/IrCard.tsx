@@ -68,7 +68,11 @@ function Stepper({ output, step, setStep }: { output: IrOutput; step: number; se
   return (
     <div class="toolbar">
       <button onClick={() => setStep(0)} disabled={step === 0}>Restart</button>
-      <button onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
+      <button onClick={() => {
+        // Playing from the end starts over instead of stopping at once.
+        if (!playing && step >= last) setStep(0);
+        setPlaying(!playing);
+      }}>{playing ? 'Pause' : 'Play'}</button>
       <button data-testid="ir-step" onClick={() => setStep(Math.min(last, step + 1))} disabled={step >= last}>Step</button>
       <span class="toolbar-note" data-testid="ir-note">
         {step + 1} of {output.steps.length}: <code>{output.steps[step]?.note}</code>
