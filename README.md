@@ -6,6 +6,8 @@ A complete compiler for a smart-home automation language (`IF TEMPERATURE > 30 T
 
 ## Run it
 
+Requirements: Node.js 22 or later and npm. The browser tests also need Google Chrome.
+
 ```sh
 npm install
 npm run dev        # open the walkthrough
@@ -187,6 +189,7 @@ flowchart LR
 
 ## Documentation
 
+- [Project report (IEEE format, PDF)](docs/report/homelang-report.pdf), built from [its LaTeX source](docs/report/homelang-report.tex) with `tectonic homelang-report.tex`
 - [Language reference](docs/language-reference.md)
 - [Design decisions](docs/DECISIONS.md)
 - [Progress](docs/PROGRESS.md)

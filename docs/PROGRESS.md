@@ -59,8 +59,14 @@ An end-to-end review compared each stage with a textbook compiler and ran about 
 
 - **A certain loop compiled as a warning (review, 6 November 2026).** `IF LIGHT IS OFF THEN TURN_ON LIGHT ELSE TURN_OFF LIGHT` passed the semantic stage with W407, then the simulation stopped with R501. Every state rule counted as guarded by its own condition, even when its actions flip that condition. Such a rule is now S317 (D54). Seven near-misses that can settle stay W407, and `tests/unit/analysis.test.ts` covers both.
 
+- **A rule's physical self-loop was never drawn (review, 26 November 2026).** In the brief and the Advanced preset, R1 has a dashed edge to itself ("AC cools TEMPERATURE, which R1 reads"). Cytoscape placed the loop within 40px of the node's centre, inside the wide label-sized box, so it skipped the edge and logged "invalid endpoints". Loops are now drawn above the node (`src/ui/viz/GraphView.tsx`).
+
+## Project report
+
+The IEEE-format report is `docs/report/homelang-report.pdf`, built from `docs/report/homelang-report.tex` with `tectonic`. Its figures come from `docs/ui/shots/`.
+
 ## Known issues
 
 - In the CFG, a `false` edge label can sit close to a block, because dagre routes edges without regard for label size.
-- `npm run test:e2e` is slow: it took 16 minutes on 6 November 2026, even with a dev server already running on port 5199 (earlier runs took 1 to 6 minutes). The cause has not been investigated.
+- `npm run test:e2e` was slow on 6 November 2026 (16 minutes). On 26 November 2026 all 56 tests passed in about one minute, so the slowness has not come back; its cause was never found.
 - Cytoscape logs two warnings that `width: 'label'` and `height: 'label'` are deprecated (`src/ui/viz/GraphView.tsx`). They are harmless; replacing them changes how every graph node is sized, so it needs a visual check first.

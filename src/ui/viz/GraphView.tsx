@@ -47,6 +47,14 @@ function graphStyle(fontPx: number) {
     { selector: 'edge.green', style: { 'line-color': green, 'target-arrow-color': green, width: 2 } },
     { selector: 'edge.red', style: { 'line-color': red, 'target-arrow-color': red, width: 2 } },
     { selector: 'edge.dashed', style: { 'line-style': 'dashed' } },
+    // A self-loop, such as the brief's "AC cools TEMPERATURE, which R1 reads".
+    // Cytoscape's default loop sits on a corner within 40px of the centre, which
+    // is inside a wide label-sized node, so the loop was not drawn at all. Put it
+    // above the node instead, far enough out to clear the box.
+    {
+      selector: 'edge:loop',
+      style: { 'loop-direction': '0deg', 'loop-sweep': '-50deg', 'control-point-step-size': 64 },
+    },
   ];
 }
 
